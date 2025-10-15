@@ -15,6 +15,75 @@ Uses 463 real freelance tasks posted by Expensify to Upwork.com. Measures perfor
 
 > **Note:** In real-world Upwork, freelancers must both write and implement proposals. In this benchmark, `ic_swe` tasks require implementation but not proposal writing, while `swe_manager` tasks require proposal selection but not implementation.
 
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       run_swelancer.py                          │
+│                   (Entry point, config parsing)                 │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      nanoeval.run()                             │
+│              (Task queue, parallel execution)                   │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    SWELancerEval.evaluate()                     │
+│           (Load task, call solver, grade result)                │
+└────────┬────────────────────────────────────────────────────────┘
+         │
+         ├──────► get_instances() ──► Load tasks from CSV
+         │
+         ├──────► Solver.run() ──────► SimpleAgentSolver or DummySolver
+         │                              ├─► Multi-turn agent loop
+         │                              ├─► Python code execution
+         │                              └─► <user-tool> support
+         │
+         └──────► Task.grade() ───────► Run tests, compute score
+                                         ├─► For ic_swe: Run Playwright tests
+                                         └─► For swe_manager: Check proposal ID
+```
+
+```
+Docker Container Lifecycle:
+┌────────────────────────────────────────────────────────────────┐
+│  1. AlcatrazComputerRuntime.run()                              │
+│     └─► Start Docker container with task-specific image       │
+└────────────────────────────┬───────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────┐
+│  2. Task._setup()                                              │
+│     ├─► Apply bug_reintroduce.patch                           │
+│     ├─► Zip tests directory (password-protected)              │
+│     ├─► Initialize git repo                                   │
+│     └─► Disable internet (iptables rules)                     │
+└────────────────────────────┬───────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────┐
+│  3. Solver.run()                                               │
+│     └─► Agent explores codebase and attempts fix              │
+└────────────────────────────┬───────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────┐
+│  4. Task.grade()                                               │
+│     ├─► Unzip tests directory                                 │
+│     ├─► Run Playwright tests (ic_swe) or check JSON (manager) │
+│     └─► Record results (score, patch, tokens, etc.)           │
+└────────────────────────────┬───────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────┐
+│  5. Container cleanup                                          │
+│     └─► Stop and remove Docker container                      │
+└────────────────────────────────────────────────────────────────┘
+```
+
 ## Example Tasks
 
 Real freelance tasks posted by Expensify to Upwork.com:
@@ -248,72 +317,3 @@ The following components are specific to SWE-Lancer but could be adapted:
 - **Isolation**: Each task runs in its own Docker container
 - **Observability**: Structured logging, task-level logs, CSV result exports
 - **Configurability**: All parameters configurable via `chz` CLI or Python
-
-## Architecture Diagram
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       run_swelancer.py                          │
-│                   (Entry point, config parsing)                 │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      nanoeval.run()                             │
-│              (Task queue, parallel execution)                   │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    SWELancerEval.evaluate()                     │
-│           (Load task, call solver, grade result)                │
-└────────┬────────────────────────────────────────────────────────┘
-         │
-         ├──────► get_instances() ──► Load tasks from CSV
-         │
-         ├──────► Solver.run() ──────► SimpleAgentSolver or DummySolver
-         │                              ├─► Multi-turn agent loop
-         │                              ├─► Python code execution
-         │                              └─► <user-tool> support
-         │
-         └──────► Task.grade() ───────► Run tests, compute score
-                                         ├─► For ic_swe: Run Playwright tests
-                                         └─► For swe_manager: Check proposal ID
-```
-
-```
-Docker Container Lifecycle:
-┌────────────────────────────────────────────────────────────────┐
-│  1. AlcatrazComputerRuntime.run()                              │
-│     └─► Start Docker container with task-specific image       │
-└────────────────────────────┬───────────────────────────────────┘
-                             │
-                             ▼
-┌────────────────────────────────────────────────────────────────┐
-│  2. Task._setup()                                              │
-│     ├─► Apply bug_reintroduce.patch                           │
-│     ├─► Zip tests directory (password-protected)              │
-│     ├─► Initialize git repo                                   │
-│     └─► Disable internet (iptables rules)                     │
-└────────────────────────────┬───────────────────────────────────┘
-                             │
-                             ▼
-┌────────────────────────────────────────────────────────────────┐
-│  3. Solver.run()                                               │
-│     └─► Agent explores codebase and attempts fix              │
-└────────────────────────────┬───────────────────────────────────┘
-                             │
-                             ▼
-┌────────────────────────────────────────────────────────────────┐
-│  4. Task.grade()                                               │
-│     ├─► Unzip tests directory                                 │
-│     ├─► Run Playwright tests (ic_swe) or check JSON (manager) │
-│     └─► Record results (score, patch, tokens, etc.)           │
-└────────────────────────────┬───────────────────────────────────┘
-                             │
-                             ▼
-┌────────────────────────────────────────────────────────────────┐
-│  5. Container cleanup                                          │
-│     └─► Stop and remove Docker container                      │
-└────────────────────────────────────────────────────────────────┘
-```
