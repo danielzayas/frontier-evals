@@ -317,13 +317,3 @@ Docker Container Lifecycle:
 │     └─► Stop and remove Docker container                      │
 └────────────────────────────────────────────────────────────────┘
 ```
-
-## Key Differences from User's Original Summary
-
-1. **Corrected task count breakdown**: Confirmed 198 `ic_swe` + 265 `swe_manager` = 463 total tasks
-2. **Added extensive "Reusable Components" section**: Highlighted nanoeval, alcatraz, and nanoeval_alcatraz as the most reusable parts
-3. **Clarified execution flow**: More accurate step-by-step description based on actual code
-4. **Added prompts.py**: Important component for understanding how tasks are presented to AI systems
-5. **Improved Docker architecture explanation**: Clarified monolith vs per-task images
-6. **Added architecture diagrams**: Visual representation of the system
-7. **Added "Building New Evaluations" section**: Practical guide for reusing components
